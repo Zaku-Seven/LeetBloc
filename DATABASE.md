@@ -2,7 +2,7 @@
 
 This document covers how LeetBloc's data is stored in Supabase (Postgres, Auth, Row Level Security) and who is allowed to read or write each table. The product design is in [DESIGN.md](./DESIGN.md). The schema itself is in [`supabase/migrations/`](./supabase/migrations/).
 
-One rule shapes everything here: the browser can read its own progress and the public problem text, and nothing else. It cannot read solution graphs or hidden tests, and it cannot write a grade. Every write that matters goes through the Next.js server, which uses the service role.
+One rule shapes everything here: the browser can read its own progress and the public problem text, and nothing else. It cannot read solution graphs or hidden tests, and it cannot write a grade. Every write that matters goes through the LeetBloc API (Next.js route handlers on Vercel), which uses the service role.
 
 ## Tables
 
@@ -41,6 +41,7 @@ erDiagram
     jsonb brute
     jsonb optimized
     jsonb tests
+    jsonb distractors
     timestamptz created_at
   }
   attempts {
@@ -70,6 +71,8 @@ erDiagram
 | `puzzles` | Gemma's generation for a problem: both canonical graphs and the agreed tests | `20261024000003_puzzles.sql` |
 | `attempts` | Every check a signed-in learner runs | `20261024000004_attempts_and_progress.sql` |
 | `progress` | One row per user per puzzle, which the progress page renders | `20261024000004_attempts_and_progress.sql` |
+
+One function, `record_attempt`, writes `attempts` and `progress` together. It is in `20261024000005_record_attempt.sql`. `20261024000006_puzzle_distractors.sql` adds `puzzles.distractors`, the blocks shared by both rounds' trays.
 
 Fixed sets of values are stored as `text` with `check` constraints, not Postgres enums, so adding a value later is a one-line migration:
 
@@ -119,7 +122,7 @@ Client roles cannot call the function directly.
 
 ```mermaid
 sequenceDiagram
-  participant S as Next.js server
+  participant S as API
   participant DB as Postgres
   participant L as LeetCode GraphQL
   participant G as Gemma
@@ -156,24 +159,29 @@ If it skips step 1, step 2 is rejected.
 ```mermaid
 sequenceDiagram
   participant B as Browser
-  participant S as Next.js server
-  participant P as Piston
+  participant S as API
   participant DB as Postgres
-  B->>S: approach + block workspace
+  B->>S: approach + workspace (tray ids, nesting)
   S->>DB: select puzzles (canonical graph, tests)
-  S->>P: run compiled workspace
-  P-->>S: per-test results
-  S->>DB: insert attempts (passed, tests_passed, tests_total)
-  S->>DB: upsert progress (attempt_count + 1, solved timestamps)
+  S->>S: run graph in the interpreter, per test
+  S->>DB: record_attempt(...)
+  DB->>DB: insert attempts, upsert progress (one transaction)
   S-->>B: result JSON
 ```
 
-The server computes `passed` itself. For the optimized round, that means every test passes and every `required` block is present. Then it writes both rows. The upsert on `progress` should:
+The API runs the graph in the TypeScript interpreter inside the function. There is no separate code runner. It computes `passed` itself: for the optimized round, every test passes and every `required` block is present. It also decides what the attempt earns:
 
-- Insert `(user_id, puzzle_id, attempt_count = 1)` on the first check, or increment `attempt_count` on each later one.
-- Set `brute_solved_at` the first time a brute-force attempt passes, and also when an optimized solution passes in the brute-force round (they skip ahead).
-- Set `optimized_solved_at` the first time an optimized-round attempt passes.
-- Never overwrite a solved timestamp once it is set. Use `coalesce(existing, now())`.
+- `p_solves_brute` for any passing attempt in the brute-force round, including an optimized solution there (they skip ahead).
+- `p_solves_optimized` for a passing optimized-round attempt.
+
+Then it calls `record_attempt` once. In one transaction, the function:
+
+- Inserts the `attempts` row.
+- Inserts `progress` with `attempt_count = 1` on the first check, or increments `attempt_count` on each later one.
+- Sets each solved timestamp with `coalesce(existing, now())`, so it is never overwritten once set.
+- Rejects a call with no user, and a failing attempt that claims to solve a round.
+
+Only `service_role` can execute `record_attempt`. Execute is revoked from `anon` and `authenticated`, so a client can't call it through PostgREST's RPC endpoint.
 
 The client never writes either table, so a passing grade can only come from this route. That is the point of the design. If the browser could write `progress`, the progress page would mean nothing.
 
@@ -183,7 +191,7 @@ Constraints keep the counts sane: `tests_passed` and `tests_total` can't go belo
 
 ### Reading progress (`GET /api/me/progress`)
 
-The progress page can read `progress` directly with the anon key and the user's session. Row Level Security limits the result to the user's own rows. Problem titles come from a join through `puzzles` to `problems`. The client can't read `puzzles`, so the server route does that join and returns only the titles and statuses.
+The progress page can read `progress` directly with the anon key and the user's session. Row Level Security limits the result to the user's own rows. Problem titles come from a join through `puzzles` to `problems`. The client can't read `puzzles`, so the API route does that join and returns only the titles and statuses.
 
 ## Indexes
 
@@ -194,7 +202,7 @@ The progress page can read `progress` directly with the anon key and the user's 
 | `puzzles (problem_id)` | Puzzle lookup by problem, including failed history |
 | `attempts (user_id, puzzle_id, created_at desc)` | A user's history on one puzzle, most recent first |
 | `attempts (puzzle_id)` | Foreign key, cascade deletes |
-| `progress (user_id, puzzle_id)` primary key | The progress page and the upsert |
+| `progress (user_id, puzzle_id)` primary key | The progress page and the upsert in `record_attempt` |
 | `progress (puzzle_id)` | Foreign key, cascade deletes |
 
 ## Deletes
@@ -219,5 +227,4 @@ New schema changes go in a new timestamped file in `supabase/migrations/`. Never
 ## Open questions
 
 - **`attempts.user_id` nullability.** DESIGN.md says it can be null but visitor rows are never written. Making it `not null` would turn that rule into a constraint.
-- **Workspace autosave.** DESIGN.md saves the block workspace every few seconds while signed in. No table holds a draft that hasn't been checked yet. A `workspace` column on `progress`, one per approach, would cover it.
-- **Progress upsert as a function.** The `progress` rules above live in the server route today. Moving them into a `security definer` function, called from the route, would make them atomic with the `attempts` insert.
+- **Workspace autosave.** DESIGN.md saves the workspace every few seconds while signed in. No table holds a draft that hasn't been checked yet. A `workspace` column on `progress`, one per approach, would cover it.

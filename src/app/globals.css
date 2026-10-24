@@ -9,6 +9,9 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --font-sans: var(--font-fredoka);
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --block-extrusion: 4px;
+  --block-extrusion-sm: 2px;
 }
 
 body {
