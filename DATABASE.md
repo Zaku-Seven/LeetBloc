@@ -1,6 +1,6 @@
-# DeepLock database
+# LeetBloc database
 
-This document covers how DeepLock's data is stored in Supabase (Postgres, Auth, Row Level Security) and who is allowed to read or write each table. The product design is in [DESIGN.md](./DESIGN.md). The schema itself is in [`supabase/migrations/`](./supabase/migrations/).
+This document covers how LeetBloc's data is stored in Supabase (Postgres, Auth, Row Level Security) and who is allowed to read or write each table. The product design is in [DESIGN.md](./DESIGN.md). The schema itself is in [`supabase/migrations/`](./supabase/migrations/).
 
 One rule shapes everything here: the browser can read its own progress and the public problem text, and nothing else. It cannot read solution graphs or hidden tests, and it cannot write a grade. Every write that matters goes through the Next.js server, which uses the service role.
 
@@ -159,7 +159,7 @@ sequenceDiagram
   participant S as Next.js server
   participant P as Piston
   participant DB as Postgres
-  B->>S: approach + Blockly workspace
+  B->>S: approach + block workspace
   S->>DB: select puzzles (canonical graph, tests)
   S->>P: run compiled workspace
   P-->>S: per-test results
@@ -219,5 +219,5 @@ New schema changes go in a new timestamped file in `supabase/migrations/`. Never
 ## Open questions
 
 - **`attempts.user_id` nullability.** DESIGN.md says it can be null but visitor rows are never written. Making it `not null` would turn that rule into a constraint.
-- **Workspace autosave.** DESIGN.md saves the Blockly workspace every few seconds while signed in. No table holds a draft that hasn't been checked yet. A `workspace` column on `progress`, one per approach, would cover it.
+- **Workspace autosave.** DESIGN.md saves the block workspace every few seconds while signed in. No table holds a draft that hasn't been checked yet. A `workspace` column on `progress`, one per approach, would cover it.
 - **Progress upsert as a function.** The `progress` rules above live in the server route today. Moving them into a `security definer` function, called from the route, would make them atomic with the `attempts` insert.

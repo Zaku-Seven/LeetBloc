@@ -1,13 +1,13 @@
-# DeepLock
+# LeetBloc
 
-DeepLock turns a LeetCode problem into a Scratch-style puzzle. A learner pastes a problem link. Gemma 4 writes two solutions, a brute-force one and an optimized one, as blocks. The learner snaps those blocks together and submits. The puzzle is solved when the assembled program passes the tests.
+LeetBloc turns a LeetCode problem into a Scratch-style puzzle. A learner pastes a problem link. Gemma 4 writes two solutions, a brute-force one and an optimized one, as blocks. The learner snaps those blocks together and submits. The puzzle is solved when the assembled program passes the tests.
 
 The point is the path into the problem, not a scoreboard. Someone who does not know how to start a LeetCode problem can still see the plan, place the steps, and watch the slow idea become the fast one.
 
 ## Product loop
 
 1. Paste a link such as `https://leetcode.com/problems/two-sum/`.
-2. DeepLock loads the public problem and asks Gemma 4 for both approaches.
+2. LeetBloc loads the public problem and asks Gemma 4 for both approaches.
 3. The server checks that both approaches compile and agree on the tests. Only then does the puzzle open.
 4. The learner builds the brute-force solution from a shuffled tray of blocks, then the optimized one.
 5. Each submit runs the assembled blocks against the tests. A pass is saved to their progress.
@@ -23,13 +23,13 @@ flowchart LR
   grade --> progress[Save progress in Supabase]
 ```
 
-Brute force comes first on purpose. The nested loop, the extra scan, the sort-and-scan: that version is how most people actually discover the problem. The optimized round then reuses the blocks that still matter and introduces the new idea (a map, two pointers, a stack). Passing the slow version with the fast blocks is fine. DeepLock marks that round solved and moves them on.
+Brute force comes first on purpose. The nested loop, the extra scan, the sort-and-scan: that version is how most people actually discover the problem. The optimized round then reuses the blocks that still matter and introduces the new idea (a map, two pointers, a stack). Passing the slow version with the fast blocks is fine. LeetBloc marks that round solved and moves them on.
 
 ## What a puzzle is
 
-The learner never edits Python. They connect blocks. Blockly renders the workspace. A small fixed catalog of blocks is the whole language, so a solution is data, not an arbitrary script.
+The learner never edits Python. They connect blocks. A Three.js board (React Three Fiber) renders the workspace: thick pieces, a hard cast shadow, and a fixed camera. A small fixed catalog of blocks is the whole language, so a solution is data, not an arbitrary script.
 
-Gemma does not invent syntax, and it does not emit Blockly XML. It fills in a JSON graph using block types DeepLock already knows. A compiler on the server turns that graph into Python. The same compiler turns the learner's workspace into Python at submit time. If a block type is not in the catalog, the generation is rejected and retried.
+Gemma does not invent syntax, and it does not emit block positions or colors. It fills in a JSON graph using block types LeetBloc already knows. A compiler on the server turns that graph into Python. The same compiler turns the learner's workspace into Python at submit time. If a block type is not in the catalog, the generation is rejected and retried.
 
 ### Block catalog
 
@@ -91,7 +91,7 @@ Order of independent statements is not graded. `create seen` above the loop is r
 
 ## Frontend
 
-A Next.js app (App Router, TypeScript, Tailwind) with Blockly. One app serves the UI and the routes that hold the Gemini key. Desktop is the layout we design for. A narrow window gets a single column and a note that the workspace wants more width. Blockly on a phone is a later problem.
+A Next.js app (App Router, TypeScript, Tailwind) with React Three Fiber. One app serves the UI and the routes that hold the Gemini key. Desktop is the only layout in this pass. A narrow window shows one line asking for a wider screen. The panes do not rearrange, and there is no phone layout. Sound is a later pass.
 
 ### Screens
 
@@ -99,11 +99,12 @@ A Next.js app (App Router, TypeScript, Tailwind) with Blockly. One app serves th
 
 **Sign in.** Email magic link and Google, both through Supabase Auth. Progress is tied to a user, so saving an attempt requires a session. A visitor can still open one puzzle. That attempt lives in memory until they sign in, then the client posts it.
 
-**Puzzle.** Three columns.
+**Puzzle.** A top bar and three regions.
 
-- Left: title, difficulty, tags, the prompt in plain text, and the examples. A short plan sits above the blocks, four to six sentences Gemma wrote for this approach ("Check every pair. The pair that adds up to target is the answer.").
-- Center: the Blockly workspace. The function block is already there and cannot be deleted. Snap blocks underneath it.
-- Right: the tray, shuffled. Each block shows its hint when focused. A toggle switches Brute force / Optimized. The optimized toggle stays locked until the brute-force round is solved, unless they already passed with the fast solution.
+- Top: `< LeetBloc >`. The chevrons walk puzzles this account has opened. They are not undo. Sound is not part of this screen.
+- Left: one spoken sentence and a worked example, then the official prompt. Difficulty is small text.
+- Right: the 3D board. The function block is already there and cannot be deleted. Pieces snap underneath it and cast a hard shadow. One directional light. No outline pass and no physics.
+- Bottom: the piece tray, and the check results beside it.
 
 Under the workspace: **Check** and a result strip. The strip names how many tests passed, shows the first failing input and the expected output, and never shows the canonical block graph. After a passing optimized solution, an explanation card shows the time and space of both versions and one sentence on what changed.
 
@@ -116,13 +117,13 @@ Under the workspace: **Check** and a result strip. The strip names how many test
 | `LinkForm` | Validates that the paste looks like a LeetCode problem URL before calling the API |
 | `ProblemPanel` | Renders the cached prompt and the approach plan |
 | `ApproachToggle` | Switches rounds and locks the optimized round |
-| `BlocklyStage` | Owns the workspace, the locked function block, and serialization |
+| `Board` | The Three.js workspace, the locked function block, and serialization |
 | `BlockTray` | Renders the shuffled bag for the active round |
 | `RunResult` | Test summary and the first failure |
 | `ExplanationCard` | Shown after the optimized round passes |
 | `ProgressList` | Reads the signed-in user's rows |
 
-The workspace is saved as Blockly JSON on each check, and also every few seconds while they are signed in, so a refresh does not clear the canvas. The client never receives the canonical graph, the compiled Python, or which tray items are distractors.
+The workspace is saved as the block graph on each check, and also every few seconds while they are signed in, so a refresh does not clear the board. The client never receives the canonical graph, the compiled Python, or which tray items are distractors.
 
 ### What the learner sees versus what we store
 
@@ -137,9 +138,9 @@ The canonical graphs, the Python, and the hidden tests stay on the server.
 
 ## APIs
 
-Four systems. The browser only talks to DeepLock. Gemma, LeetCode, and the code runner are server-side.
+Four systems. The browser only talks to LeetBloc. Gemma, LeetCode, and the code runner are server-side.
 
-### DeepLock routes
+### LeetBloc routes
 
 | Route | Purpose |
 | --- | --- |
@@ -152,7 +153,7 @@ Four systems. The browser only talks to DeepLock. Gemma, LeetCode, and the code 
 
 ### Gemma 4, through the Gemini API
 
-Gemma 4 is Google DeepMind's lightweight open-weight model. DeepLock uses the hosted version on the Gemini Developer API, which is free for Gemma. It is not an OpenAI model. Google's OpenAI-compatible endpoint serves Gemini models and does not reliably serve Gemma, so the server calls the native Gemini API with `@google/genai`.
+Gemma 4 is Google DeepMind's lightweight open-weight model. LeetBloc uses the hosted version on the Gemini Developer API, which is free for Gemma. It is not an OpenAI model. Google's OpenAI-compatible endpoint serves Gemini models and does not reliably serve Gemma, so the server calls the native Gemini API with `@google/genai`.
 
 | | |
 | --- | --- |
@@ -162,27 +163,27 @@ Gemma 4 is Google DeepMind's lightweight open-weight model. DeepLock uses the ho
 | Key | `GEMINI_API_KEY` from Google AI Studio, only in the server environment |
 | Thinking | `thinkingLevel: "high"` while writing a solution. `"minimal"` on the repair call |
 
-Free tier, from the Gemini pricing page (checked October 2026): input, output, and context caching for Gemma 4 are free, and there is no paid tier. Prompts on that free tier may be used to improve Google's products. DeepLock sends the problem statement and the block-catalog instructions. It does not send the user's email, session, or display name.
+Free tier, from the Gemini pricing page (checked October 2026): input, output, and context caching for Gemma 4 are free, and there is no paid tier. Prompts on that free tier may be used to improve Google's products. LeetBloc sends the problem statement and the block-catalog instructions. It does not send the user's email, session, or display name.
 
 Rate limits are per Google project and are shown in AI Studio, not as a fixed public number. Caching one puzzle per problem slug is what keeps a demo inside those limits. Apps offered to users in the EEA, the UK, or Switzerland cannot use the free tier, and Gemma has no paid tier to switch to. The hackathon build targets everyone else.
 
-The official Gemma guide documents system instructions, multi-turn chat, and thinking. It does not document schema-enforced JSON for these model ids. DeepLock asks for one JSON object, parses it, and checks it with a schema in our own code. A parse failure or an unknown block type triggers a single repair call that includes the error. If that still fails, the puzzle is marked failed and the UI asks them to try a starter problem.
+The official Gemma guide documents system instructions, multi-turn chat, and thinking. It does not document schema-enforced JSON for these model ids. LeetBloc asks for one JSON object, parses it, and checks it with a schema in our own code. A parse failure or an unknown block type triggers a single repair call that includes the error. If that still fails, the puzzle is marked failed and the UI asks them to try a starter problem.
 
 The generation prompt asks for both graphs, a short plan for each, complexity strings, required-block ids, distractors drawn from the same catalog, and extra test cases. Temperature stays low.
 
 ### LeetCode problem text
 
-There is no official public API for this. DeepLock reads public problems through LeetCode's GraphQL endpoint, the same one the problem page uses:
+There is no official public API for this. LeetBloc reads public problems through LeetCode's GraphQL endpoint, the same one the problem page uses:
 
 `POST https://leetcode.com/graphql`
 
 The slug is the path segment in `/problems/{slug}`. The query asks for `title`, `content`, `difficulty`, `topicTags`, `exampleTestcases`, `codeSnippets` (Python), `hints`, and `isPaidOnly`. Paid problems are rejected. The HTML prompt is reduced to text before it is shown or sent to Gemma.
 
-This endpoint is unofficial. DeepLock uses it to read public problem text, caches the result, and does not submit code to LeetCode or store a LeetCode session. If a request fails, the three bundled starter problems still open.
+This endpoint is unofficial. LeetBloc uses it to read public problem text, caches the result, and does not submit code to LeetCode or store a LeetCode session. If a request fails, the three bundled starter problems still open.
 
 ### Running code
 
-Assembled blocks become Python, then run in a sandbox. The public Piston API at `emkc.org` has been whitelist-only since February 2026, so DeepLock runs [Piston](https://github.com/engineer-man/piston) itself in Docker.
+Assembled blocks become Python, then run in a sandbox. The public Piston API at `emkc.org` has been whitelist-only since February 2026, so LeetBloc runs [Piston](https://github.com/engineer-man/piston) itself in Docker.
 
 `POST {PISTON_URL}/api/v2/execute`
 
@@ -271,7 +272,7 @@ Supabase (Postgres, Auth, Row Level Security). The anon key can read a user's ow
 | `user_id` | References `profiles`. Null for a visitor who has not signed in. Visitor rows are not written. |
 | `puzzle_id` | References `puzzles` |
 | `approach` | `brute` or `optimized` |
-| `workspace` | `jsonb` Blockly state they submitted |
+| `workspace` | `jsonb` block graph they submitted |
 | `passed` | Tests passed, and required blocks for the optimized round |
 | `tests_passed` | |
 | `tests_total` | |
@@ -317,7 +318,7 @@ A `pending` row older than a couple of minutes is treated as abandoned so a cras
 
 Build in this order:
 
-1. Bundled Two Sum, hand-written block graphs, Blockly workspace, compile to Python, run in local Piston.
+1. Bundled Two Sum, hand-written block graphs, Three.js board, compile to Python, run in local Piston.
 2. Supabase Auth, `attempts`, and `progress`, with the check route writing the grade.
 3. Gemma generation for a pasted slug, with the agree-on-tests gate.
 4. LeetCode GraphQL plus the three bundled fallbacks.
