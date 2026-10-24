@@ -27,7 +27,13 @@ const problemInputSchema = z.object({
 // POST /api/generate
 // ---------------------------------------------------------------------------
 
+// Development only: it returns the canonical solutions and spends Gemma
+// quota on any input. Learners get puzzles through POST /api/puzzles.
 export async function POST(request: Request) {
+  if (process.env.NODE_ENV !== "development") {
+    return NextResponse.json({ error: "Not found." }, { status: 404 });
+  }
+
   // Parse body
   let body: unknown;
   try {
@@ -91,6 +97,7 @@ export async function POST(request: Request) {
       },
       distractorCount: response.distractors.length,
       extraTestCount: response.extraTests.length,
+      agreedTests: result.content?.tests ?? [],
       data: response,
       ...(process.env.NODE_ENV === "development" && {
         _debug: result.debug,
