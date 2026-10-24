@@ -23,3 +23,16 @@ export function isStatement(type: BlockType): boolean {
 export function isValue(type: BlockType): boolean {
   return VALUE_SET.has(type);
 }
+
+/** Block types that have a single value slot (condition, range, rhs of assign) */
+const VALUE_SLOT_TYPES = new Set<string>([
+  "for_index",
+  "for_each",
+  "while",
+  "if",
+  "assign",
+]);
+
+export function typeHasValueSlot(type: BlockType): boolean {
+  return VALUE_SLOT_TYPES.has(type);
+}

@@ -1,48 +1,42 @@
 import type { BlockType } from "@/lib/gemma/types";
 
 export interface BlockColorSet {
-  front: string;
-  right: string;
-  bottom: string;
+  bg: string;
+  border: string;
   text: string;
   slotBg: string;
 }
 
 const COLORS = {
   control: {
-    front: "bg-amber-400",
-    right: "bg-amber-500",
-    bottom: "bg-amber-600",
+    bg: "bg-amber-400",
+    border: "border-amber-600",
     text: "text-amber-950",
-    slotBg: "bg-amber-600/40",
+    slotBg: "bg-amber-500/50",
   },
   data: {
-    front: "bg-blue-400",
-    right: "bg-blue-500",
-    bottom: "bg-blue-600",
+    bg: "bg-blue-400",
+    border: "border-blue-600",
     text: "text-blue-950",
-    slotBg: "bg-blue-600/40",
+    slotBg: "bg-blue-500/50",
   },
   output: {
-    front: "bg-green-400",
-    right: "bg-green-500",
-    bottom: "bg-green-600",
+    bg: "bg-green-400",
+    border: "border-green-600",
     text: "text-green-950",
-    slotBg: "bg-green-600/40",
+    slotBg: "bg-green-500/50",
   },
   variable: {
-    front: "bg-purple-400",
-    right: "bg-purple-500",
-    bottom: "bg-purple-600",
+    bg: "bg-purple-400",
+    border: "border-purple-600",
     text: "text-purple-950",
-    slotBg: "bg-purple-600/40",
+    slotBg: "bg-purple-500/50",
   },
   operation: {
-    front: "bg-teal-400",
-    right: "bg-teal-500",
-    bottom: "bg-teal-600",
+    bg: "bg-teal-400",
+    border: "border-teal-600",
     text: "text-teal-950",
-    slotBg: "bg-teal-600/40",
+    slotBg: "bg-teal-500/50",
   },
 } as const;
 
