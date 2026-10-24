@@ -1,91 +1,34 @@
-// ---------------------------------------------------------------------------
-// Block catalog constants
-// ---------------------------------------------------------------------------
+// The block catalog lives in src/lib/blocks/catalog.ts, shared with the
+// interpreter, the Python printer, and the frontend. This module re-exports
+// it under the names the Gemma layer uses.
 
-/** Statement blocks — vertical stack, execute in order */
-export const STATEMENT_BLOCK_TYPES = [
-  "create",    // Make a list, set, map, or number
-  "assign",    // Store a value
-  "append",    // Push onto a list
-  "map_set",   // Remember a key→value
-  "set_add",   // Remember a membership
-  "for_index", // Walk indexes (including nested loops)
-  "for_each",  // Walk values
-  "while",     // Walk a condition (used for pointers)
-  "if",        // Branch
-  "else",      // Else branch
-  "return",    // Answer
-] as const;
+import type { PuzzleCandidate, PuzzleContent } from "../puzzles/types";
+import type { CallRecord } from "./generate";
 
-/** Value blocks — dropped into statement holes */
-export const VALUE_BLOCK_TYPES = [
-  "var",       // Variables like nums, target, i, seen
-  "number",    // Constants like 0, 1, -1
-  "index",     // Array access like nums[i]
-  "map_get",   // Dictionary lookup like seen[complement]
-  "length",    // len(nums)
-  "binop",     // Binary operations like target - nums[i]
-  "compare",   // Comparisons like i < j, seen has key
-  "in_set",    // Check membership
-] as const;
+export {
+  STATEMENT_TYPES as STATEMENT_BLOCK_TYPES,
+  VALUE_TYPES as VALUE_BLOCK_TYPES,
+  type BlockNode,
+  type BlockType,
+  type Fields,
+  type StatementType as StatementBlockType,
+  type ValueType as ValueBlockType,
+  type ApproachGraph,
+  type TestCase,
+} from "../blocks/catalog";
 
-export const ALL_BLOCK_TYPES = [
-  ...STATEMENT_BLOCK_TYPES,
-  ...VALUE_BLOCK_TYPES,
-] as const;
+import { STATEMENT_TYPES, VALUE_TYPES } from "../blocks/catalog";
 
-export type StatementBlockType = (typeof STATEMENT_BLOCK_TYPES)[number];
-export type ValueBlockType = (typeof VALUE_BLOCK_TYPES)[number];
-export type BlockType = (typeof ALL_BLOCK_TYPES)[number];
+export const ALL_BLOCK_TYPES = [...STATEMENT_TYPES, ...VALUE_TYPES] as const;
 
 // ---------------------------------------------------------------------------
-// Block tree
+// Full Gemma response shape: exactly what the backend verifies and stores.
 // ---------------------------------------------------------------------------
 
-/** A single block in the puzzle tree (recursive) */
-export interface BlockNode {
-  id: string;
-  type: BlockType;
-  /** Human-readable label shown on the block */
-  label: string;
-  /** Single child value (e.g. the condition of an if) */
-  value?: BlockNode;
-  /** Multiple child values (e.g. operands of binop) */
-  values?: BlockNode[];
-  /** Ordered statement children (e.g. body of a for loop) */
-  children?: BlockNode[];
-}
+export type GemmaGenerationResponse = PuzzleCandidate;
 
 // ---------------------------------------------------------------------------
-// Approach graph (one per solution strategy)
-// ---------------------------------------------------------------------------
-
-export interface ApproachGraph {
-  /** Short natural-language plan shown to the learner */
-  plan: string;
-  /** Big-O complexity string, e.g. "O(n)" */
-  complexity: string;
-  /** Root-level blocks forming the solution */
-  blocks: BlockNode[];
-  /** IDs of blocks the learner *must* place for the optimized round */
-  requiredBlockIds: string[];
-}
-
-// ---------------------------------------------------------------------------
-// Full Gemma response shape
-// ---------------------------------------------------------------------------
-
-export interface GemmaGenerationResponse {
-  brute: ApproachGraph;
-  optimized: ApproachGraph;
-  /** Extra blocks not used in either solution (red herrings) */
-  distractors: BlockNode[];
-  /** Additional test cases beyond the examples */
-  extraTests: TestCase[];
-}
-
-// ---------------------------------------------------------------------------
-// Problem input & test cases
+// Problem input
 // ---------------------------------------------------------------------------
 
 export interface Example {
@@ -102,11 +45,6 @@ export interface ProblemInput {
   examples: Example[];
 }
 
-export interface TestCase {
-  input: string;
-  expected: string;
-}
-
 // ---------------------------------------------------------------------------
 // Generation pipeline result
 // ---------------------------------------------------------------------------
@@ -117,13 +55,16 @@ export interface GenerationResult {
   status: GenerationStatus;
   problem: ProblemInput;
   response: GemmaGenerationResponse | null;
+  // The verified puzzle, with the agreed tests. Set when status is ready.
+  content: PuzzleContent | null;
   model: string;
   /** Errors from the latest validation pass (empty when status is ready) */
   errors: string[];
   /** Internal debug data (timings, raw text, etc.) */
   debug: {
     rawText: string;
-    repairRawText?: string;
     attempts: number;
+    // Each Gemma request: model, thinking level, duration, and any API error.
+    calls: CallRecord[];
   };
 }
