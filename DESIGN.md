@@ -8,7 +8,7 @@ The point is the path into the problem, not a scoreboard. Someone who does not k
 
 1. Paste a link such as `https://leetcode.com/problems/two-sum/`.
 2. LeetBloc loads the public problem and asks Gemma 4 for both approaches.
-3. The server runs both approaches and checks that they agree on the tests. Only then does the puzzle open.
+3. The server runs both approaches in the interpreter and checks that they agree on the tests. Only then does the puzzle open.
 4. The learner builds the brute-force solution from a shuffled tray of blocks, then the optimized one.
 5. Each submit runs the assembled blocks against the tests. A pass is saved to their progress.
 
@@ -27,9 +27,9 @@ Brute force comes first on purpose. The nested loop, the extra scan, the sort-an
 
 ## What a puzzle is
 
-The learner never edits code. They connect blocks, which the Three.js frontend renders. A small fixed catalog of blocks is the whole language, so a solution is data, not an arbitrary script.
+The learner never edits code. They connect blocks on a Three.js board (React Three Fiber): thick pieces, a hard cast shadow, and a fixed camera. A small fixed catalog of blocks is the whole language, so a solution is data, not an arbitrary script.
 
-Gemma does not invent syntax. It fills in a JSON block tree using block types LeetBloc already knows. A TypeScript interpreter runs the tree directly, block by block. Nothing is compiled, and no generated code is ever executed. If a block type is not in the catalog, the generation is rejected and retried.
+Gemma does not invent syntax, and it does not emit block positions or colors. It fills in a JSON block tree using block types LeetBloc already knows. A TypeScript interpreter runs the tree directly, block by block. Nothing is compiled, and no generated code is ever executed. If a block type is not in the catalog, the generation is rejected and retried.
 
 A block is `{ id, type, label, hint?, fields?, value?, values?, children? }`. This is the tree shape the Gemma layer (`src/lib/gemma/types.ts`) produces, plus two things:
 
@@ -107,7 +107,7 @@ Order of independent statements is not graded. `create seen` above the loop is r
 
 ## Frontend
 
-Three.js draws the block workspace, the tray, and the screens below, inside the Next.js app. It talks to the LeetBloc API and to Supabase Auth, and holds no secrets. Desktop is the layout we design for. A narrow window gets a single column and a note that the workspace wants more width. Touch input is a later problem.
+Three.js (React Three Fiber) draws the block board inside the Next.js app. The page talks to the LeetBloc API and to Supabase Auth, and holds no secrets. Desktop is the only layout in this pass. A narrow window shows one line asking for a wider screen. The panes do not rearrange, and there is no phone layout. Sound is a later pass.
 
 ### Screens
 
@@ -115,11 +115,12 @@ Three.js draws the block workspace, the tray, and the screens below, inside the 
 
 **Sign in.** Email magic link and Google, both through Supabase Auth. Progress is tied to a user, so saving an attempt requires a session. A visitor can still open one puzzle. That attempt lives in memory until they sign in, then the client posts it.
 
-**Puzzle.** Three columns.
+**Puzzle.** A top bar and three regions.
 
-- Left: title, difficulty, tags, the prompt in plain text, and the examples. A short plan sits above the blocks, four to six sentences Gemma wrote for this approach ("Check every pair. The pair that adds up to target is the answer.").
-- Center: the block workspace. The function block is already there and cannot be deleted. Snap blocks underneath it. A **Python** tab shows the assembled program as Python and updates as blocks snap in.
-- Right: the tray, shuffled. Each block shows its hint when focused. A toggle switches Brute force / Optimized. The optimized toggle stays locked until the brute-force round is solved, unless they already passed with the fast solution.
+- Top: `< LeetBloc >`. The chevrons walk puzzles this account has opened. They are not undo. Sound is not part of this screen.
+- Left: one spoken sentence and a worked example, then the official prompt. Difficulty is small text.
+- Right: the 3D board. The function block is already there and cannot be deleted. Pieces snap underneath it and cast a hard shadow. One directional light. No outline pass and no physics. “See this in Python” shows the assembled program and stays collapsed until opened.
+- Bottom: the piece tray, and the check results beside it. A toggle switches the slow round and the fast round. The fast round stays locked until the slow one is solved, unless they already built the fast idea.
 
 Under the workspace: **Check** and a result strip. The strip names how many tests passed, shows the first failing input and the expected output, and never shows the canonical solution. After a round is solved, its reference solution is shown as Python next to theirs. After a passing optimized solution, an explanation card shows the complexity of both versions.
 
@@ -132,14 +133,14 @@ Under the workspace: **Check** and a result strip. The strip names how many test
 | `LinkForm` | Validates that the paste looks like a LeetCode problem URL before calling the API |
 | `ProblemPanel` | Renders the cached prompt and the approach plan |
 | `ApproachToggle` | Switches rounds and locks the optimized round |
-| `BlockStage` | The Three.js scene: owns the workspace, the locked function block, and serialization to the workspace format |
+| `Board` | The Three.js scene: the locked function block, the stack, and serialization to the workspace format |
 | `BlockTray` | Renders the shuffled bag for the active round |
 | `PythonView` | Prints the learner's graph as Python with the shared printer. Shows the reference solution once the round is solved |
 | `RunResult` | Test summary and the first failure |
 | `ExplanationCard` | Shown after the optimized round passes |
 | `ProgressList` | Reads the signed-in user's rows |
 
-The workspace is saved as workspace JSON (see Backend) on each check, and also every few seconds while they are signed in, so a refresh does not clear the canvas. Before a round is solved, the client never receives the canonical graph, the reference Python, or which tray items are distractors.
+The workspace is saved as workspace JSON (see Backend) on each check, and also every few seconds while they are signed in, so a refresh does not clear the board. Before a round is solved, the client never receives the canonical graph, the reference Python, or which tray items are distractors.
 
 ### What the learner sees versus what we store
 
@@ -408,7 +409,7 @@ A `pending` row older than 6 minutes is treated as abandoned so a crashed reques
 
 Build in this order:
 
-1. Bundled Two Sum, hand-written block trees, the Three.js workspace, the interpreter, and the Python printer, deployed to Vercel.
+1. Bundled Two Sum, hand-written block trees, the Three.js board, the interpreter, and the Python printer.
 2. Supabase Auth, `attempts`, and `progress`, with the check route writing the grade through `record_attempt`.
 3. Gemma generation for a pasted slug, with the agree-on-tests gate.
 4. LeetCode GraphQL plus the three bundled fallbacks.

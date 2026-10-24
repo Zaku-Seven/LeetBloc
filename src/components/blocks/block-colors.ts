@@ -62,12 +62,17 @@ const TYPE_TO_CATEGORY: Record<BlockType, Category> = {
   return: "output",
   var: "variable",
   number: "variable",
+  string: "variable",
+  bool: "variable",
+  list: "variable",
   index: "variable",
   length: "variable",
   binop: "operation",
   compare: "operation",
   in_set: "operation",
   map_get: "operation",
+  not: "operation",
+  call: "operation",
 };
 
 export function getBlockColors(type: BlockType): BlockColorSet {
